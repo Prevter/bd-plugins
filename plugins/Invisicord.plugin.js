@@ -1,9 +1,10 @@
 /**
  * @name Invisicord
  * @description Disable Discord's telemetry and tracking
- * @version 0.0.1
+ * @version 0.0.2
  * @author Prevter
  * @authorId 400199033915965441
+ * @updateUrl https://prevter.github.io/bd-plugins/plugins/Invisicord.plugin.js
  */
 
 if (!global.PrevLib) throw new Error("PrevLib is required for this plugin to work.");
@@ -11,15 +12,16 @@ if (!global.PrevLib) throw new Error("PrevLib is required for this plugin to wor
 const config = {
     name: "Invisicord",
     description: "Disable Discord's telemetry and tracking",
-    version: "0.0.1",
-    changelog: `<b>Initial release</b>`,
+    version: "0.0.2",
+    changelog: `<b>Added update URL</b>`,
+    updateUrl: "https://prevter.github.io/bd-plugins/plugins/Invisicord.plugin.js"
 }
 
 const originalOpen = window.XMLHttpRequest.prototype.open;
 const originalSetRequestHeader = window.XMLHttpRequest.prototype.setRequestHeader;
 
 module.exports = global.PrevLib.create(config, ([Plugin, Api]) => ({
-    async start() {
+    start: async () => {
         // Replace functions
         XMLHttpRequest.prototype.open = function (method, url, async) {
             const parameters = url.split('/').pop().split('?')[0];
@@ -36,7 +38,7 @@ module.exports = global.PrevLib.create(config, ([Plugin, Api]) => ({
             return originalSetRequestHeader.apply(this, arguments);
         };
     },
-    async stop() {
+    stop: async () => {
         // Restore original functions
         XMLHttpRequest.prototype.open = originalOpen;
         XMLHttpRequest.prototype.setRequestHeader = originalSetRequestHeader;

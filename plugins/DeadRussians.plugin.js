@@ -1,9 +1,10 @@
 /**
  * @name DeadRussians
  * @description Set discord status to russian losses in war with Ukraine
- * @version 1.0.0
+ * @version 1.0.1
  * @author Prevter
  * @authorId 400199033915965441
+ * @updateUrl https://prevter.github.io/bd-plugins/plugins/DeadRussians.plugin.js
  */
 
 if (!global.PrevLib) throw new Error("PrevLib is required for this plugin to work.");
@@ -11,8 +12,9 @@ if (!global.PrevLib) throw new Error("PrevLib is required for this plugin to wor
 const config = {
     name: "DeadRussians",
     description: "Set discord status to russian losses in war with Ukraine",
-    version: "1.0.0",
-    changelog: `<p>Complete rewrite</p>`
+    version: "1.0.1",
+    changelog: `<p>Added update URL</p>`,
+    updateUrl: "https://prevter.github.io/bd-plugins/plugins/DeadRussians.plugin.js"
 }
 
 /** This function fetches stats from russianwarship.rip */
@@ -76,7 +78,7 @@ module.exports = global.PrevLib.create(config, ([Plugin, Api]) => ({
         // Get current date in form of YYYY-MM-DD
         const date = new Date();
         const dateString = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-        
+
         // Check if we already changed status today (checking saved date)
         const settings = Plugin.loadSettings();
         const savedDate = settings.lastCheckedDate;
@@ -91,7 +93,7 @@ module.exports = global.PrevLib.create(config, ([Plugin, Api]) => ({
         // Save new date
         Plugin._settings.lastCheckedDate = stats.date;
         Plugin.saveSettings();
-        
+
         // Change status
         await this.changeStatus(stats);
     },
@@ -105,9 +107,9 @@ module.exports = global.PrevLib.create(config, ([Plugin, Api]) => ({
         const currentStatus = await this.getCurrentStatus();
 
         // Check if status is already set
-        if (currentStatus 
-            && currentStatus.text == status.text 
-            && currentStatus.emoji_name == status.emoji_name) 
+        if (currentStatus
+            && currentStatus.text == status.text
+            && currentStatus.emoji_name == status.emoji_name)
             return;
 
         // Set status

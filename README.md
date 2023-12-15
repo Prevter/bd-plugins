@@ -8,7 +8,7 @@ This allows me to create plugins that are much more performant and have a smalle
 This repository also serves as a way to check updates for my plugins.
 
 ## Installation
-1. Download [the plugin library](https://prevter.github.io/bd-plugins/plugins/0PrevLib.plugin.js) and place it in your BetterDiscord plugins folder. (Do not enable it in BetterDiscord settings!)
+1. Download [the plugin library](https://prevter.github.io/bd-plugins/plugins/0PrevLib.plugin.js) and place it in your BetterDiscord plugins folder.
 2. Download the plugins you want from the [plugins folder](https://github.com/Prevter/bd-plugins/tree/main/plugins) and place them in your BetterDiscord plugins folder.
 3. Enable the plugins in BetterDiscord settings.
 
@@ -21,7 +21,8 @@ This repository also serves as a way to check updates for my plugins.
 | [DeadRussians](https://prevter.github.io/bd-plugins/plugins/DeadRussians.plugin.js) | Funny plugin that sets your status to russian casualties in war with Ukraine. |
 
 ## Updating
-I'm currently working on a way to automatically update plugins, but for now you'll have to manually update them by downloading the latest version of the plugin.
+By default, plugins will automatically check for updates every 4 hours. You can change the time in library settings, or disable it completely.  
+When an update is available, an alert will be shown, asking you to update the plugin.
 
 ## License
 All of my plugins are licensed under the [MIT License](LICENSE)

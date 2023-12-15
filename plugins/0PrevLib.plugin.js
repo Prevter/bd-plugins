@@ -1,22 +1,30 @@
 /**
  * @name PrevLib
  * @description Contains shared methods for plugins
- * @version 1.2.3
+ * @version 1.3.0
  * @author Prevter
  * @authorId 400199033915965441
+ * @updateUrl https://prevter.github.io/bd-plugins/plugins/0PrevLib.plugin.js
  */
 
 const _config = {
     name: "PrevLib",
     description: "Contains shared methods for plugins",
-    version: "1.2.3",
+    version: "1.3.0",
     changelog: `
-        <ul>
-            <li>• Fixed minor bugs</li>
-            <li>• Added shorthand for <code>BdApi.showToast</code></li>
-        </ul>
+        <b>Finally</b> implemented automatic updates for plugins.<br/>
+        A popup will appear when an update is available. 
+        You can change update frequency in the library settings, or disable it completely.<br/>
+        These are big changes, so you might need to restart Discord for everything to work properly.<br/><br/>
+        <button class="prevlib-setting" onclick="location.reload();">Restart Discord</button>
     `,
+    updateUrl: "https://prevter.github.io/bd-plugins/plugins/0PrevLib.plugin.js",
 }
+
+const DEFAULT_SETTINGS = {
+    checkForUpdates: true,
+    checkForUpdatesInterval: 60 * 60 * 4, // 4 hours
+};
 
 class PrevLib {
     log() {
@@ -24,25 +32,32 @@ class PrevLib {
             'color: #7289da', 'color: #828284', ...arguments);
     }
 
-    save(key, value) {
-        BdApi.saveData(this._config.name, key, value);
+    save(key, value, plugin_name = null) {
+        BdApi.saveData(plugin_name || this._config.name, key, value);
     }
 
-    saveSettings(settings = null) {
-        if (settings) this._settings = settings;
-        BdApi.saveData(this._config.name, "settings", this._settings);
+    saveSettings(settings = null, plugin_name = null) {
+        // combine current settings with given settings
+        if (settings) {
+            if (this._settings == undefined) this._settings = {};
+            for (let key of Object.keys(settings)) {
+                this._settings[key] = settings[key];
+            }
+        }
+        BdApi.saveData(plugin_name || this._config.name, "settings", this._settings);
     }
 
-    loadSettings(defaults = {}) {
-        const settings = BdApi.Data.load(this._config.name, "settings") || {};
+    loadSettings(defaults = {}, plugin_name = null) {
+        const settings = BdApi.Data.load(plugin_name || this._config.name, "settings") || {};
         for (let key of Object.keys(defaults)) {
             if (settings[key] == undefined) settings[key] = defaults[key];
         }
-        BdApi.saveData(this._config.name, "settings", settings);
+        BdApi.saveData(plugin_name || this._config.name, "settings", settings);
         return settings;
     }
 
-    createSettingsOption(key, type, label, callback = () => { }, useInputCallback = false) {
+    createSettingsOption(key, type, label, callback = null, plugin_name = null) {
+        if (this._settings == undefined) this._settings = this.loadSettings({}, plugin_name);
         const value = this._settings[key];
         const setting = Object.assign(document.createElement("div"), { className: "prevlib-setting" });
         const span = Object.assign(document.createElement("span"), { textContent: label });
@@ -52,22 +67,12 @@ class PrevLib {
         else
             input = Object.assign(document.createElement("input"), { type: type, name: key, value: value, className: "prevlib-setting-value" });
         if (type == "checkbox" && value) input.checked = true;
-        if (useInputCallback && type != "checkbox") {
-            input.addEventListener("input", () => {
-                const newValue = type == "checkbox" ? input.checked : input.value;
-                this._settings[key] = newValue;
-                BdApi.saveData(this._config.name, "settings", this._settings);
-                callback(newValue);
-            });
-        }
-        else {
-            input.addEventListener("change", () => {
-                const newValue = type == "checkbox" ? input.checked : input.value;
-                this._settings[key] = newValue;
-                BdApi.saveData(this._config.name, "settings", this._settings);
-                callback(newValue);
-            });
-        }
+        input.addEventListener("change", () => {
+            const newValue = type == "checkbox" ? input.checked : input.value;
+            this._settings[key] = newValue;
+            BdApi.saveData(plugin_name || this._config.name, "settings", this._settings);
+            if (callback) callback(newValue);
+        });
         setting.input = input;
         setting.append(span, input);
         return setting;
@@ -114,8 +119,65 @@ class PrevLib {
     }
 
     constructor() { }
-    start() { }
+    start() {
+        this._config = _config;
+        this.loadSettings(DEFAULT_SETTINGS, "0PrevLib");
+    }
     stop() { }
+
+    getSettingsPanel() {
+        const panel = document.createElement("div");
+
+        const checkForUpdates = this.createSettingsOption("checkForUpdates", "checkbox", "Check for updates automatically", (value) => {
+            if (value) {
+                this.checkForUpdatesInterval = setInterval(() => {
+                    this.checkForUpdates(_config);
+                }, this._settings.checkForUpdatesInterval * 1000);
+                for (let plugin of PrevLibPlugins) {
+                    plugin.checkForUpdatesInterval = setInterval(() => {
+                        PrevLib.checkForUpdates(plugin._config);
+                    }, this._settings.checkForUpdatesInterval * 1000);
+                }
+            } else {
+                clearInterval(this.checkForUpdatesInterval);
+                const prevLibPlugins = PrevLib.getPrevLibPlugins();
+                for (let plugin of prevLibPlugins) {
+                    clearInterval(plugin.checkForUpdatesInterval);
+                }
+            }
+        }, "0PrevLib");
+
+        const checkForUpdatesInterval = this.createSettingsOption("checkForUpdatesInterval", "number", "Check for updates every (seconds)", (value) => {
+            if (this._settings.checkForUpdates) {
+                clearInterval(this.checkForUpdatesInterval);
+                this.checkForUpdatesInterval = setInterval(() => {
+                    this.checkForUpdates(_config);
+                }, value * 1000);
+
+                const prevLibPlugins = PrevLib.getPrevLibPlugins();
+                for (let plugin of prevLibPlugins) {
+                    clearInterval(plugin.checkForUpdatesInterval);
+                    plugin.checkForUpdatesInterval = setInterval(() => {
+                        PrevLib.checkForUpdates(plugin._config);
+                    }, value * 1000);
+                }
+            }
+        }, "0PrevLib");
+        checkForUpdatesInterval.input.min = 60;
+
+        const checkForUpdatesButton = this.createSettingsButton("Check for updates now", () => {
+            PrevLib.checkForUpdates(_config, true);
+            const prevLibPlugins = PrevLib.getPrevLibPlugins();
+            console.log(prevLibPlugins);
+            for (let plugin of prevLibPlugins) {
+                PrevLib.checkForUpdates(plugin._config, true);
+            }
+        });
+
+        panel.append(checkForUpdates, checkForUpdatesInterval, checkForUpdatesButton);
+
+        return panel;
+    }
 
     static create(config, callback) {
         return class extends PrevLib {
@@ -127,6 +189,7 @@ class PrevLib {
             start() {
                 this.log("Starting...");
                 this._callbacks = callback([this, PrevLib]);
+                this._isPrevLib = true;
                 this._settings = {};
                 const settings = BdApi.Data.load(this._config.name, "settings");
                 if (settings) this._settings = settings;
@@ -135,6 +198,10 @@ class PrevLib {
                     if (callbackName === "start" || callbackName === "stop") continue;
                     this[callbackName] = this._callbacks[callbackName];
                 }
+
+                if (!this._callbacks.getSettingsPanel) this["getSettingsPanel"] = undefined;
+
+                this.checkForUpdatesInterval = PrevLib.checkForUpdates(config);
 
                 if (this._callbacks.start) this._callbacks.start();
             }
@@ -191,17 +258,89 @@ class PrevLib {
         });
     }
 
-    static showToast(content, options = {}) {
-        BdApi.UI.showToast(content, options);
+    static getUpdates(sourceUrl) {
+        return this.sendRequest("GET", sourceUrl).then(source => {
+            const version = source.match(/@version\s+([^\s]+)/)[1];
+            return {
+                version: version,
+                filename: sourceUrl.split("/").pop(),
+                source,
+            };
+        });
     }
 
-    static getUpdates(sourceUrl) {
+    static checkForUpdates(config, force = false) {
+        let libSettings = BdApi.Data.load("0PrevLib", "settings");
+        if (!libSettings) {
+            // save default settings
+            BdApi.Data.save("0PrevLib", "settings", DEFAULT_SETTINGS);
+            libSettings = DEFAULT_SETTINGS;
+        }
+        if (!force && !libSettings.checkForUpdates) return;
 
+        if (!config.updateUrl) return;
+        const update = this.getUpdates(config.updateUrl);
+        update.then(update => {
+            if (update.version !== config.version) {
+                BdApi.UI.showConfirmationModal(
+                    "Update available",
+                    `There is an update available for **${config.name}** (${config.version} -> ${update.version}).  \nDo you want to update?`,
+                    {
+                        confirmText: "Update",
+                        cancelText: "Cancel",
+                        onConfirm: () => {
+                            this.installUpdate(config.name, update);
+                        }
+                    }
+                );
+            }
+        });
+
+        return setInterval(() => {
+            this.checkForUpdates(config);
+        }, libSettings.checkForUpdatesInterval * 1000);
+    }
+
+    static installUpdate(name, update) {
+        const plugin = BdApi.Plugins.get(name);
+        if (!plugin) return;
+        const pluginPath = this.getPluginsDir() + "/" + update.filename;
+        const fs = require("fs");
+        fs.writeFileSync(pluginPath, update.source);
+    }
+
+    static getPluginsDir() {
+        // Determine platform
+        const platform = process.platform;
+        let dir;
+        if (platform == "win32") {
+            dir = process.env.APPDATA;
+        } else if (platform == "darwin") {
+            dir = process.env.HOME + "/Library/Preferences";
+        } else {
+            dir = process.env.XDG_CONFIG_HOME
+                || process.env.HOME + "/.config";
+        }
+        dir += "/BetterDiscord/plugins";
+        return dir;
+    }
+
+    static getPrevLibPlugins() {
+        const plugins = BdApi.Plugins.getAll();
+        const filtered = plugins.filter(plugin => {
+            if (plugin.name === "PrevLib") return false;
+            if (!plugin.instance._isPrevLib) return false;
+            return true;
+        });
+        return filtered.map(plugin => plugin.instance);
     }
 }
 
 PrevLib.checkChangelog(_config);
+PrevLib.checkForUpdates(_config);
 global.PrevLib = PrevLib;
+
+PrevLib.getPrevLibPlugins();
 
 const css = `
     .prevlib-setting {
