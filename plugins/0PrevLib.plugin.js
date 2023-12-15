@@ -285,7 +285,7 @@ class PrevLib {
 
         if (!force && !libSettings.checkForUpdates) return;
 
-        const update = this.getUpdates(config.updateUrl);
+        const update = this.getUpdates(config.updateUrl + "?t=" + Date.now());
         update.then(update => {
             if (update.version !== config.version) {
                 BdApi.UI.showConfirmationModal(
