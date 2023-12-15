@@ -276,9 +276,15 @@ class PrevLib {
             BdApi.Data.save("0PrevLib", "settings", DEFAULT_SETTINGS);
             libSettings = DEFAULT_SETTINGS;
         }
+
+        if (!config.updateUrl) {
+            // try to deduce url without updateUrl:
+            const url = `https://prevter.github.io/bd-plugins/plugins/${config.name}.plugin.js`;
+            config.updateUrl = url;
+        }
+
         if (!force && !libSettings.checkForUpdates) return;
 
-        if (!config.updateUrl) return;
         const update = this.getUpdates(config.updateUrl);
         update.then(update => {
             if (update.version !== config.version) {
