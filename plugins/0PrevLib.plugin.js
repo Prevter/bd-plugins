@@ -1,7 +1,7 @@
 /**
  * @name PrevLib
  * @description Contains shared methods for plugins
- * @version 1.3.0
+ * @version 1.3.1
  * @author Prevter
  * @authorId 400199033915965441
  * @updateUrl https://prevter.github.io/bd-plugins/plugins/0PrevLib.plugin.js
@@ -10,13 +10,12 @@
 const _config = {
     name: "PrevLib",
     description: "Contains shared methods for plugins",
-    version: "1.3.0",
+    version: "1.3.1",
     changelog: `
-        <b>Finally</b> implemented automatic updates for plugins.<br/>
-        A popup will appear when an update is available. 
-        You can change update frequency in the library settings, or disable it completely.<br/>
-        These are big changes, so you might need to restart Discord for everything to work properly.<br/><br/>
-        <button class="prevlib-setting" onclick="location.reload();">Restart Discord</button>
+        <ul>
+            <li>Fixed a bug, where after updating a plugin, it will still show that an update is available.</li>
+            <li>Fixed a bug, that would duplicate update notifications.</li>
+        </ul>
     `,
     updateUrl: "https://prevter.github.io/bd-plugins/plugins/0PrevLib.plugin.js",
 }
@@ -119,47 +118,35 @@ class PrevLib {
     }
 
     constructor() { }
-    start() {
-        this._config = _config;
-        this.loadSettings(DEFAULT_SETTINGS, "0PrevLib");
-    }
-    stop() { }
+    start() {}
+    stop() {}
 
     getSettingsPanel() {
         const panel = document.createElement("div");
 
         const checkForUpdates = this.createSettingsOption("checkForUpdates", "checkbox", "Check for updates automatically", (value) => {
             if (value) {
-                this.checkForUpdatesInterval = setInterval(() => {
-                    this.checkForUpdates(_config);
-                }, this._settings.checkForUpdatesInterval * 1000);
+                this.createAutoUpdateChecker();
                 for (let plugin of PrevLibPlugins) {
-                    plugin.checkForUpdatesInterval = setInterval(() => {
-                        PrevLib.checkForUpdates(plugin._config);
-                    }, this._settings.checkForUpdatesInterval * 1000);
+                    plugin.createAutoUpdateChecker();
                 }
             } else {
-                clearInterval(this.checkForUpdatesInterval);
+                this.stopAutoUpdateChecker();
                 const prevLibPlugins = PrevLib.getPrevLibPlugins();
                 for (let plugin of prevLibPlugins) {
-                    clearInterval(plugin.checkForUpdatesInterval);
+                    plugin.stopAutoUpdateChecker();
                 }
             }
         }, "0PrevLib");
 
         const checkForUpdatesInterval = this.createSettingsOption("checkForUpdatesInterval", "number", "Check for updates every (seconds)", (value) => {
             if (this._settings.checkForUpdates) {
-                clearInterval(this.checkForUpdatesInterval);
-                this.checkForUpdatesInterval = setInterval(() => {
-                    this.checkForUpdates(_config);
-                }, value * 1000);
+                
+                
 
                 const prevLibPlugins = PrevLib.getPrevLibPlugins();
                 for (let plugin of prevLibPlugins) {
-                    clearInterval(plugin.checkForUpdatesInterval);
-                    plugin.checkForUpdatesInterval = setInterval(() => {
-                        PrevLib.checkForUpdates(plugin._config);
-                    }, value * 1000);
+                    plugin.createAutoUpdateChecker();
                 }
             }
         }, "0PrevLib");
@@ -177,6 +164,24 @@ class PrevLib {
         panel.append(checkForUpdates, checkForUpdatesInterval, checkForUpdatesButton);
 
         return panel;
+    }
+
+    createAutoUpdateChecker() {
+        const libSettings = BdApi.Data.load("0PrevLib", "settings");
+        if (!libSettings) {
+            // save default settings
+            BdApi.Data.save("0PrevLib", "settings", DEFAULT_SETTINGS);
+            libSettings = DEFAULT_SETTINGS;
+        }
+        if (!libSettings.checkForUpdates) return;
+        if (this._autoUpdateChecker) clearInterval(this._autoUpdateChecker);
+        this._autoUpdateChecker = setInterval(() => {
+            this.checkForUpdates(_config);
+        }, libSettings.checkForUpdatesInterval * 1000);
+    }
+
+    stopAutoUpdateChecker() {
+        if (this._autoUpdateChecker) clearInterval(this._autoUpdateChecker);
     }
 
     static create(config, callback) {
@@ -201,13 +206,15 @@ class PrevLib {
 
                 if (!this._callbacks.getSettingsPanel) this["getSettingsPanel"] = undefined;
 
-                this.checkForUpdatesInterval = PrevLib.checkForUpdates(config);
+                PrevLib.checkForUpdates(config);
+                this.createAutoUpdateChecker();
 
                 if (this._callbacks.start) this._callbacks.start();
             }
             stop() {
                 this.log("Stopping...");
                 if (this._callbacks.stop) this._callbacks.stop();
+                this.stopAutoUpdateChecker();
             }
         }
     }
@@ -263,7 +270,7 @@ class PrevLib {
             const version = source.match(/@version\s+([^\s]+)/)[1];
             return {
                 version: version,
-                filename: sourceUrl.split("/").pop(),
+                filename: sourceUrl.split("/").pop().split("?")[0],
                 source,
             };
         });
@@ -301,15 +308,14 @@ class PrevLib {
                 );
             }
         });
-
-        return setInterval(() => {
-            this.checkForUpdates(config);
-        }, libSettings.checkForUpdatesInterval * 1000);
     }
 
     static installUpdate(name, update) {
         const plugin = BdApi.Plugins.get(name);
         if (!plugin) return;
+        // stop autoupdate checker for old plugin
+        if (plugin.instance.stopAutoUpdateChecker) 
+            plugin.instance.stopAutoUpdateChecker();
         const pluginPath = this.getPluginsDir() + "/" + update.filename;
         const fs = require("fs");
         fs.writeFileSync(pluginPath, update.source);
@@ -346,7 +352,17 @@ PrevLib.checkChangelog(_config);
 PrevLib.checkForUpdates(_config);
 global.PrevLib = PrevLib;
 
-PrevLib.getPrevLibPlugins();
+// start auto update checker for PrevLib
+const libSettings = BdApi.Data.load("0PrevLib", "settings");
+if (!libSettings) {
+    // save default settings
+    BdApi.Data.save("0PrevLib", "settings", DEFAULT_SETTINGS);
+}
+if (libSettings.checkForUpdates) {
+    PrevLib._autoUpdateChecker = setInterval(() => {
+        PrevLib.checkForUpdates(_config);
+    }, libSettings.checkForUpdatesInterval * 1000);
+}
 
 const css = `
     .prevlib-setting {
